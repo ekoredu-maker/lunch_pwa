@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6b55">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="점심정산">
+<title>점심 정산</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 로그인 -->
+<div id="login" class="login" hidden>
+  <div class="login-box">
+    <img src="icons/icon-192.png" alt="" width="64" height="64">
+    <h1>점심 정산</h1>
+    <p>모임 비밀번호를 입력하세요. 한 번만 입력하면 이 휴대폰에서 계속 로그인돼요.</p>
+    <form id="loginForm">
+      <input type="password" id="pw" placeholder="모임 비밀번호" autocomplete="current-password" required>
+      <button class="btn primary" type="submit" id="loginBtn">들어가기</button>
+      <div class="err" id="loginErr"></div>
+    </form>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <header>
+    <button class="icon-btn" id="prevM" aria-label="이전 달">‹</button>
+    <h1><span id="mTitle"></span><small id="mSub"></small></h1>
+    <button class="icon-btn" id="nextM" aria-label="다음 달">›</button>
+  </header>
+  <div class="note" id="netNote" hidden></div>
+
+  <!-- 입력 -->
+  <section id="tab-add">
+    <div class="editing-bar" id="editBar" hidden>
+      <span id="editText"></span>
+      <button type="button" class="link" id="editCancel">수정 취소</button>
+    </div>
+    <div>
+      <div class="label">날짜</div>
+      <input type="date" id="fDate">
+    </div>
+    <div>
+      <div class="label">식당 <button type="button" class="link accent" id="favEdit"></button></div>
+      <div class="chips" id="fShops"></div>
+      <button type="button" class="link muted" id="moreShops"></button>
+      <input type="text" id="fShop" placeholder="목록에 없으면 직접 입력" class="mt8">
+    </div>
+    <div>
+      <div class="label">기본 가격 <b id="priceShow"></b></div>
+      <div class="chips" id="fPrices"></div>
+    </div>
+    <div>
+      <div class="label">먹은 사람 (이름을 누르세요) <b id="cntShow"></b></div>
+      <div class="people" id="fPeople"></div>
+    </div>
+    <div id="adjBox" hidden>
+      <div class="label">금액이 다른 사람만 고치세요 (손님 몫 포함 등)</div>
+      <div class="adj" id="fAdj"></div>
+    </div>
+    <div>
+      <div class="label">공동분담 (배달료·음료 등) <b>먹은 사람끼리 나눔</b></div>
+      <input type="number" id="fShared" inputmode="numeric" placeholder="0" step="500" min="0">
+    </div>
+    <div>
+      <div class="label">결제자</div>
+      <div class="chips" id="fPayer"></div>
+    </div>
+    <div>
+      <div class="label">메모 (선택)</div>
+      <input type="text" id="fMemo" placeholder="예: 김인식 손님 1명 포함">
+    </div>
+    <button class="save" id="saveBtn" disabled>저장</button>
+  </section>
+
+  <!-- 내역 -->
+  <section id="tab-list" hidden>
+    <div id="list"></div>
+  </section>
+
+  <!-- 정산 -->
+  <section id="tab-settle" hidden>
+    <div>
+      <div class="label">내 이름 <b>이 휴대폰에 기억돼요</b></div>
+      <div class="chips" id="meChips"></div>
+    </div>
+    <div class="me" id="meCard"></div>
+    <div>
+      <div class="label">전체 정산표 <b id="bossShow"></b></div>
+      <div class="tbl-wrap"><table id="tbl"></table></div>
+    </div>
+    <div>
+      <div class="label">카톡 공지문</div>
+      <pre class="kakao" id="kakao"></pre>
+      <div class="row mt8"><button class="btn primary" id="shareBtn">카톡으로 공유</button><button class="btn" id="copyBtn">복사</button></div>
+    </div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-set" hidden>
+    <div>
+      <div class="label">이달 총무 <b id="setBossYm"></b></div>
+      <select id="bossSel"></select>
+      <p class="hint">총무 순번은 미리 15개월치가 들어 있어요. 바꿀 달로 이동한 뒤 여기서 고르세요.</p>
+    </div>
+    <div>
+      <div class="label">명단 <button type="button" class="link accent" id="addMember">+ 사람 추가</button></div>
+      <div id="memberList" class="mlist"></div>
+      <p class="hint">'참여'를 끄면 입력 화면에서 숨겨지고, 지난 기록과 정산은 그대로 남아요. 총무 순번 칸을 비우면 총무에서 빠져요.</p>
+    </div>
+    <div class="row">
+      <button class="btn" id="reloadBtn">새로고침</button>
+      <button class="btn" id="logoutBtn">로그아웃</button>
+    </div>
+  </section>
+</div>
+
+<nav id="nav" hidden>
+  <button data-tab="add" class="on"><span class="i">＋</span>입력</button>
+  <button data-tab="list"><span class="i">☰</span>내역</button>
+  <button data-tab="settle"><span class="i">₩</span>정산</button>
+  <button data-tab="set"><span class="i">⚙</span>설정</button>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

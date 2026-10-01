@@ -1,0 +1,6 @@
+// ==== 여기 세 줄만 고치세요 (README 2단계 참고) ====
+window.APP_CONFIG = {
+  SUPABASE_URL: 'https://YOUR-PROJECT-ID.supabase.co',
+  SUPABASE_ANON_KEY: 'YOUR-ANON-PUBLIC-KEY',
+  GROUP_EMAIL: 'lunch@example.com',   // 수파베이스에 만든 '모임 공용 계정' 이메일
+};
