@@ -20,7 +20,7 @@ function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.g
 // ---------------- state ----------------
 const now = new Date();
 let ym = { y: now.getFullYear(), m: now.getMonth() + 1 };
-let members = [], shops = [], shopCounts = {}, bosses = {}, meals = [];
+let members = [], shops = [], shopCounts = {}, bosses = {}, meals = [], rsvps = [];
 let me = Number(ls.get('lunch-me')) || null;
 let favEditing = false, showAllShops = false, busy = false;
 let f = blankForm();
@@ -59,20 +59,28 @@ $('loginForm').onsubmit = async (e) => {
   const { error } = await sb.auth.signInWithPassword({ email: CFG.GROUP_EMAIL, password: $('pw').value });
   $('loginBtn').disabled = false;
   if (error) { $('loginErr').textContent = /Invalid/i.test(error.message) ? '비밀번호가 맞지 않아요' : error.message; return; }
-  $('pw').value = ''; showApp(); await loadAll();
+  $('pw').value = ''; showApp(); await loadAll(); runPendingIntent();
 };
+let pendingIntent = null;
+function runPendingIntent() {
+  if (!pendingIntent) return;
+  const p = pendingIntent; pendingIntent = null;
+  handleRsvpIntent(p.rsvp, p.date);
+}
 $('logoutBtn').onclick = async () => { await sb.auth.signOut(); showLogin(); };
 
 // ---------------- data ----------------
 async function loadAll() {
   try {
-    const [m, s, b, c] = await Promise.all([
+    const [m, s, b, c, rv] = await Promise.all([
       sb.from('members').select('*').order('sort').order('id'),
       sb.from('shops').select('*').order('name'),
       sb.from('bosses').select('*'),
       sb.from('meals').select('shop').limit(5000),
+      sb.from('rsvps').select('*').eq('date', todayStr()),
     ]);
-    for (const r of [m, s, b, c]) if (r.error) throw r.error;
+    for (const r of [m, s, b, c, rv]) if (r.error) throw r.error;
+    rsvps = rv.data;
     members = m.data; shops = s.data;
     bosses = Object.fromEntries(b.data.map((x) => [x.ym, x.member_id]));
     shopCounts = {}; for (const x of c.data) shopCounts[x.shop] = (shopCounts[x.shop] || 0) + 1;
@@ -252,7 +260,7 @@ function acctOf(id) { const m = memberById(id); return m && (m.bank || m.account
 function renderSettle() {
   const s = settle(); const bossName = s.bossId ? nameOf(s.bossId) : null;
   $('meChips').replaceChildren(...members.filter((m) => m.active || m.id === me).map((m) =>
-    chip(esc(m.name), me === m.id, '', () => { me = m.id; ls.set('lunch-me', m.id); renderSettle(); })));
+    chip(esc(m.name), me === m.id, '', () => setMe(m.id))));
   const card = $('meCard');
   const r = s.rows.find((x) => x.id === me);
   const acct = s.bossId ? acctOf(s.bossId) : '';
@@ -342,13 +350,128 @@ $('addMember').onclick = async () => {
 };
 $('reloadBtn').onclick = () => loadAll().then(() => toast('새로 불러왔어요'));
 
+// ---------------- 오늘 점심 신청 ----------------
+async function setMe(id) {
+  me = id; ls.set('lunch-me', id);
+  renderRsvp(); renderSettle(); renderPush();
+  // 이 휴대폰이 알림을 받고 있으면, 알림 대상 이름도 바꿔 둠
+  const sub = await currentSub();
+  if (sub) await sb.from('push_subs').update({ member_id: id }).eq('endpoint', sub.endpoint);
+}
+function renderRsvp() {
+  const card = $('rsvpCard');
+  const d = new Date(); const today = todayStr();
+  const head = `<div class="head"><b>오늘 ${d.getMonth() + 1}/${d.getDate()}(${DOW[d.getDay()]}) 점심 신청</b>`;
+  if (!me || !memberById(me)) {
+    card.innerHTML = head + '</div><div class="cap" style="font-size:13px;color:var(--muted)">먼저 내 이름을 눌러 주세요. 이 휴대폰에 기억돼요.</div><div class="chips" id="rsvpWho"></div>';
+    $('rsvpWho').replaceChildren(...activeMembers().map((m) => chip(esc(m.name), false, '', () => setMe(m.id))));
+    return;
+  }
+  const mine = rsvps.find((r) => r.member_id === me && r.date === today)?.status;
+  const yes = activeMembers().filter((m) => rsvps.some((r) => r.member_id === m.id && r.status === 'yes'));
+  const no = activeMembers().filter((m) => rsvps.some((r) => r.member_id === m.id && r.status === 'no'));
+  const none = activeMembers().filter((m) => !rsvps.some((r) => r.member_id === m.id));
+  card.innerHTML = head + `<select id="rsvpMe" aria-label="내 이름">${activeMembers().map((m) => `<option value="${m.id}" ${m.id === me ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>
+    <div class="choice"><button type="button" class="yes ${mine === 'yes' ? 'on' : ''}" id="rsvpYes">🍚 신청</button><button type="button" class="no ${mine === 'no' ? 'on' : ''}" id="rsvpNo">미신청</button></div>
+    <div class="sum"><div class="y">신청 <b>${yes.length}명</b>${yes.length ? ' · ' + yes.map((m) => esc(m.name)).join(', ') : ''}</div>
+    <div>미신청 ${no.length}명${no.length ? ' · ' + no.map((m) => esc(m.name)).join(', ') : ''}</div>
+    <div>아직 안 고름 ${none.length}명${none.length ? ' · ' + none.map((m) => esc(m.name)).join(', ') : ''}</div></div>
+    ${yes.length ? '<button type="button" class="btn" id="rsvpFill">신청한 사람으로 오늘 기록 시작</button>' : ''}`;
+  $('rsvpMe').onchange = (e) => setMe(+e.target.value);
+  $('rsvpYes').onclick = () => setRsvp(mine === 'yes' ? null : 'yes');
+  $('rsvpNo').onclick = () => setRsvp(mine === 'no' ? null : 'no');
+  const fill = $('rsvpFill');
+  if (fill) fill.onclick = () => {
+    f = { ...blankForm(f), date: today, price: f.price, sel: Object.fromEntries(yes.map((m) => [m.id, f.price])) };
+    renderForm(); $('fPeople').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast(`${yes.length}명을 선택했어요. 식당과 결제자만 고르세요`, 2200);
+  };
+}
+async function setRsvp(status, date = todayStr()) {
+  if (!me) { toast('먼저 내 이름을 골라 주세요'); return; }
+  const before = rsvps.slice();
+  rsvps = rsvps.filter((r) => !(r.member_id === me && r.date === date));
+  if (status) rsvps.push({ date, member_id: me, status });
+  renderRsvp();
+  const q = status
+    ? sb.from('rsvps').upsert({ date, member_id: me, status, updated_at: new Date().toISOString() }, { onConflict: 'date,member_id' })
+    : sb.from('rsvps').delete().eq('date', date).eq('member_id', me);
+  const { error } = await q;
+  if (error) { rsvps = before; renderRsvp(); fail(error, '신청 저장'); return; }
+  toast(status === 'yes' ? '점심 신청했어요' : status === 'no' ? '오늘은 미신청으로 표시했어요' : '선택을 취소했어요');
+}
+// 알림의 [신청]/[미신청] 버튼 또는 알림 클릭으로 들어온 경우
+async function handleRsvpIntent(rsvp, date) {
+  goTab('add'); window.scrollTo(0, 0);
+  if ((rsvp === 'yes' || rsvp === 'no') && date === todayStr()) await setRsvp(rsvp, date);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'rsvp' && !$('app').hidden) loadAll().then(() => handleRsvpIntent(e.data.rsvp, e.data.date));
+  });
+}
+
+// ---------------- 알림 켜기/끄기 ----------------
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+async function currentSub() {
+  if (!pushSupported()) return null;
+  try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; }
+  catch (e) { return null; }
+}
+function b64uToBytes(s) {
+  const p = '='.repeat((4 - (s.length % 4)) % 4); const raw = atob((s + p).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+async function renderPush() {
+  const on = $('pushOn'), off = $('pushOff'), st = $('pushState');
+  if (!pushSupported()) {
+    on.hidden = true; off.hidden = true;
+    st.textContent = '이 브라우저는 지원 안 함';
+    $('pushHint').textContent = isIOS() && !isStandalone()
+      ? '아이폰은 사파리에서 [공유 → 홈 화면에 추가]로 설치한 뒤, 홈 화면의 앱을 열어 여기서 켜 주세요.'
+      : '이 브라우저에서는 알림을 받을 수 없어요. 안드로이드는 크롬, 아이폰은 홈 화면에 추가한 앱에서 켜 주세요.';
+    return;
+  }
+  const sub = await currentSub();
+  const denied = Notification.permission === 'denied';
+  st.textContent = sub ? `켜짐 (${me ? nameOf(me) : '이름 미선택'})` : denied ? '차단됨' : '꺼짐';
+  on.hidden = !!sub; off.hidden = !sub;
+  if (denied) $('pushHint').textContent = '알림이 차단돼 있어요. 휴대폰 설정 → 앱(또는 크롬) → 알림에서 이 사이트 알림을 허용한 뒤 다시 눌러 주세요.';
+}
+$('pushOn').onclick = async () => {
+  if (!me) { toast('먼저 [입력] 탭에서 내 이름을 골라 주세요', 2400); goTab('add'); return; }
+  if (!CFG.VAPID_PUBLIC_KEY) { toast('config.js 에 VAPID_PUBLIC_KEY 가 없어요', 2600); return; }
+  $('pushOn').disabled = true;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('알림 허용을 눌러야 받을 수 있어요', 2400); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription())
+      || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(CFG.VAPID_PUBLIC_KEY) });
+    const { error } = await sb.from('push_subs').upsert({ endpoint: sub.endpoint, member_id: me, sub: sub.toJSON() }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    toast('알림을 켰어요. 평일 아침 9시에 와요', 2200);
+  } catch (e) { fail(e, '알림 켜기'); }
+  finally { $('pushOn').disabled = false; renderPush(); }
+};
+$('pushOff').onclick = async () => {
+  const sub = await currentSub();
+  if (sub) {
+    await sb.from('push_subs').delete().eq('endpoint', sub.endpoint);
+    try { await sub.unsubscribe(); } catch (e) { /* 무시 */ }
+  }
+  toast('알림을 껐어요'); renderPush();
+};
+
 // ---------------- 공통 ----------------
 function renderHeader() {
   $('mTitle').textContent = `${ym.y}년 ${ym.m}월 점심`;
   const s = settle();
   $('mSub').textContent = `총무 ${s.bossId ? nameOf(s.bossId) : '미정'} · ${meals.length}회 · ${won(s.total)}원`;
 }
-function renderAll() { renderHeader(); renderForm(); renderList(); renderSettle(); renderSettings(); }
+function renderAll() { renderHeader(); renderRsvp(); renderForm(); renderList(); renderSettle(); renderSettings(); renderPush(); }
 function goTab(t) {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x.dataset.tab === t));
   for (const k of ['add', 'list', 'settle', 'set']) $('tab-' + k).hidden = k !== t;
@@ -364,6 +487,10 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !$
   if (/YOUR-PROJECT-ID/.test(CFG.SUPABASE_URL)) {
     showLogin(); $('loginErr').textContent = 'config.js 에 수파베이스 주소와 키를 먼저 넣어 주세요 (README 참고)'; return;
   }
+  // 알림에서 들어온 경우: ?rsvp=yes|no&date=YYYY-MM-DD
+  const qs = new URLSearchParams(location.search);
+  pendingIntent = qs.has('rsvp') || qs.has('from') ? { rsvp: qs.get('rsvp'), date: qs.get('date') } : null;
+  if (location.search) history.replaceState(null, '', location.pathname);
   const { data } = await sb.auth.getSession();
-  if (data.session) { showApp(); await loadAll(); } else showLogin();
+  if (data.session) { showApp(); await loadAll(); runPendingIntent(); } else showLogin();
 })();

@@ -98,3 +98,32 @@ GROUP_EMAIL: 'chongmu@example.com',                // 4번에서 만든 계정 �
 - **비밀번호 바꾸기**: 사람이 나갔을 때는 Authentication → Users에서 공용 계정의 비밀번호를 바꿉니다. 그러면 모두 새 비밀번호로 다시 로그인해야 합니다.
 - **백업**: 가끔 수파베이스 **Table Editor**에서 `meals`, `meal_items` 표를 CSV로 내려받아 두면 안심입니다.
 - **앱을 고쳐서 다시 올릴 때**: GitHub에서 파일을 바꾼 뒤 `sw.js` 맨 위 `VERSION = 'v1'`을 `'v2'`처럼 올려 주세요. 그래야 휴대폰에 설치된 앱도 새 버전으로 바뀝니다.
+
+---
+
+## v2 업데이트: 점심 신청 + 아침 9시 알림
+
+### 바뀐 점
+- **입력** 탭 맨 위에 **오늘 점심 신청 카드**가 생겼습니다. [🍚 신청] / [미신청]을 누르면 모두에게 신청 현황이 보입니다.
+- **신청한 사람으로 오늘 기록 시작**을 누르면 신청자가 먹은 사람으로 미리 선택됩니다.
+- **설정** 탭에서 **이 휴대폰에서 알림 받기**를 켜면, 평일 아침 9시에 알림이 옵니다. 주말과 `holidays` 표의 공휴일은 건너뜁니다.
+  - 안드로이드: 알림에 [🍚 신청] [미신청] 버튼이 나옵니다.
+  - 아이폰: 홈 화면에 추가한 앱에서만 알림을 받을 수 있고, 알림을 누르면 앱이 열립니다.
+
+### 설치 순서
+1. **SQL**: SQL Editor에서 `supabase/update_v2_rsvp.sql`을 실행합니다.
+2. **Edge Function 만들기**
+   - Edge Functions → **Deploy a new function → Via Editor**
+   - 이름은 `lunch-push`
+   - `supabase/functions/lunch-push/index.ts` 내용을 붙여넣고 **Deploy**
+3. **JWT 검증 끄기**: 함수의 Details(또는 Settings)에서 **Verify JWT / Enforce JWT verification**을 끕니다. 예약 작업은 대신 비밀값(CRON_SECRET)으로 확인합니다.
+4. **Secrets 넣기**: Edge Functions → **Secrets**에 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` 세 개를 추가합니다. 값은 따로 받은 `알림_비밀값.txt`에 있습니다.
+5. **예약 만들기**: SQL Editor에서 `알림예약_cron.sql`을 실행합니다. 이 파일은 비밀값이 들어 있어 깃허브에 올리지 않습니다.
+6. **앱 파일 올리기**: 깃허브에 `index.html`, `app.js`, `style.css`, `sw.js`, `config.js`를 덮어써서 올립니다.
+7. **휴대폰에서 켜기**: 앱 → 설정 → **이 휴대폰에서 알림 받기**
+8. **테스트**: SQL Editor에서 `알림테스트.sql`의 첫 줄을 실행하고, 알림이 오는지 확인합니다.
+
+### 관리
+- **알림 시간 바꾸기**: `알림예약_cron.sql`의 `'0 0 * * 1-5'`를 바꿉니다. 시간은 UTC 기준이라 한국 시간에서 9시간을 빼야 합니다 (예: 8:30 → `'30 23 * * 0-4'`).
+- **10:30 재알림**: 아직 신청/미신청을 고르지 않은 사람에게만 한 번 더 보내려면, cron 파일 아래쪽 주석을 풀고 실행합니다.
+- **휴무일 추가**: Table Editor → `holidays` 표에 날짜를 추가합니다.

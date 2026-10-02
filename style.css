@@ -49,6 +49,17 @@ input:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid 
 .step{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:inherit;cursor:pointer}
 .save{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;font-size:16px;padding:15px;cursor:pointer;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 30%,transparent)}
 .save:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.rsvp{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:10px}
+.rsvp .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.rsvp .head b{font-size:16px}
+.rsvp .head select{width:auto;font-size:13px;padding:4px 8px}
+.rsvp .choice{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rsvp .choice button{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:12px;padding:14px 8px;font:inherit;font-weight:700;font-size:16px;cursor:pointer}
+.rsvp .choice button.yes.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.rsvp .choice button.no.on{background:var(--ink);color:var(--bg);border-color:transparent}
+.rsvp .sum{font-size:13px;color:var(--muted);display:grid;gap:2px}
+.rsvp .sum b{color:var(--ink)}
+.rsvp .sum .y b{color:var(--accent)}
 .editing-bar{display:flex;justify-content:space-between;align-items:center;background:var(--accent-soft);border-radius:10px;padding:8px 12px;font-size:14px;font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(160px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:20;max-width:90vw;text-align:center}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px);z-index:10}

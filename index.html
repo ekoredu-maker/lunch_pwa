@@ -38,6 +38,7 @@
 
   <!-- 입력 -->
   <section id="tab-add">
+    <div class="rsvp" id="rsvpCard"></div>
     <div class="editing-bar" id="editBar" hidden>
       <span id="editText"></span>
       <button type="button" class="link" id="editCancel">수정 취소</button>
@@ -108,6 +109,14 @@
       <div class="label">이달 총무 <b id="setBossYm"></b></div>
       <select id="bossSel"></select>
       <p class="hint">총무 순번은 미리 15개월치가 들어 있어요. 바꿀 달로 이동한 뒤 여기서 고르세요.</p>
+    </div>
+    <div>
+      <div class="label">아침 9시 점심 신청 알림 <b id="pushState"></b></div>
+      <div class="row">
+        <button class="btn primary" id="pushOn">이 휴대폰에서 알림 받기</button>
+        <button class="btn" id="pushOff" hidden>알림 끄기</button>
+      </div>
+      <p class="hint" id="pushHint">평일 아침 9시에 "오늘 점심 신청" 알림이 와요. 주말과 공휴일에는 오지 않아요. 아이폰은 홈 화면에 추가한 앱에서 켜야 해요.</p>
     </div>
     <div>
       <div class="label">명단 <button type="button" class="link accent" id="addMember">+ 사람 추가</button></div>
